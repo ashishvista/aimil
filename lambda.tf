@@ -1,11 +1,13 @@
 # Lambda Layer for dependencies
 resource "aws_lambda_layer_version" "dependencies" {
-  filename         = data.archive_file.lambda_layer_zip.output_path
+  filename         = "${path.module}/lambda_layer.zip"
   layer_name       = "${var.project_name}-dependencies"
-  source_code_hash = data.archive_file.lambda_layer_zip.output_base64sha256
+  source_code_hash = filebase64sha256("${path.module}/lambda_layer.zip")
 
   compatible_runtimes = ["python3.9"]
   description         = "Dependencies for OCR Pipeline Lambda functions"
+  
+  depends_on = [null_resource.build_lambda_layer]
 }
 
 # Lambda function for OCR processing
@@ -46,14 +48,6 @@ resource "aws_lambda_function" "presigned_url_generator" {
   }
 
   depends_on = [aws_lambda_layer_version.dependencies]
-}
-
-# Archive Lambda layer
-data "archive_file" "lambda_layer_zip" {
-  type        = "zip"
-  source_dir  = "${path.module}/lambda_layer_temp"
-  output_path = "${path.module}/lambda_layer.zip"
-  depends_on  = [null_resource.build_lambda_layer]
 }
 
 # Build Lambda layer
