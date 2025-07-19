@@ -249,3 +249,8 @@ terraform destroy
 ## License
 
 This project is licensed under the MIT License.
+
+pipeline_name = "ocr-pipeline-pipeline"
+sagemaker_bucket_name = "ocr-pipeline-sagemaker-sv1mmdug"
+sagemaker_endpoint_name = "ocr-pipeline-endpoint-sv1mmdug"
+upload_bucket_name = "ocr-pipeline-uploads-sv1mmdug"

@@ -29,7 +29,7 @@ resource "aws_s3_object" "requirements" {
 # SageMaker Pipeline Definition
 resource "aws_sagemaker_pipeline" "ocr_pipeline" {
   pipeline_name        = "${var.project_name}-pipeline"
-  pipeline_display_name = "OCR Model Training Pipeline"
+  pipeline_display_name = "OCR-Model-Training-Pipeline"
   role_arn             = aws_iam_role.sagemaker_pipeline_role.arn
 
   pipeline_definition = jsonencode({
@@ -61,67 +61,6 @@ resource "aws_sagemaker_pipeline" "ocr_pipeline" {
     ]
     Steps = [
       {
-        Name = "PreprocessData"
-        Type = "Processing"
-        Arguments = {
-          ProcessingResources = {
-            ClusterConfig = {
-              InstanceType   = "ml.m5.xlarge"
-              InstanceCount  = 1
-              VolumeSizeInGB = 30
-            }
-          }
-          AppSpecification = {
-            ImageUri = var.ecr_image_uri
-            ContainerEntrypoint = ["python3"]
-            ContainerArguments = ["/opt/ml/processing/input/code/preprocess.py"]
-          }
-          RoleArn = aws_iam_role.sagemaker_execution_role.arn
-          ProcessingInputs = [
-            {
-              InputName = "input-1"
-              AppManaged = false
-              S3Input = {
-                S3Uri = "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/data/"
-                LocalPath = "/opt/ml/processing/input"
-                S3DataType = "S3Prefix"
-                S3InputMode = "File"
-              }
-            },
-            {
-              InputName = "code"
-              AppManaged = false
-              S3Input = {
-                S3Uri = "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/code/"
-                LocalPath = "/opt/ml/processing/input/code"
-                S3DataType = "S3Prefix"
-                S3InputMode = "File"
-              }
-            }
-          ]
-          ProcessingOutputs = [
-            {
-              OutputName = "train"
-              AppManaged = false
-              S3Output = {
-                S3Uri = "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/processed/train"
-                LocalPath = "/opt/ml/processing/output/train"
-                S3UploadMode = "EndOfJob"
-              }
-            },
-            {
-              OutputName = "validation"
-              AppManaged = false
-              S3Output = {
-                S3Uri = "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/processed/validation"
-                LocalPath = "/opt/ml/processing/output/validation"
-                S3UploadMode = "EndOfJob"
-              }
-            }
-          ]
-        }
-      },
-      {
         Name = "TrainModel"
         Type = "Training"
         Arguments = {
@@ -135,23 +74,11 @@ resource "aws_sagemaker_pipeline" "ocr_pipeline" {
               DataSource = {
                 S3DataSource = {
                   S3DataType = "S3Prefix"
-                  S3Uri = "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/processed/train"
+                  S3Uri = "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/data/"
                   S3DataDistributionType = "FullyReplicated"
                 }
               }
-              ContentType = "application/x-parquet"
-              CompressionType = "None"
-            },
-            {
-              ChannelName = "validation"
-              DataSource = {
-                S3DataSource = {
-                  S3DataType = "S3Prefix"
-                  S3Uri = "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/processed/validation"
-                  S3DataDistributionType = "FullyReplicated"
-                }
-              }
-              ContentType = "application/x-parquet"
+              ContentType = "application/json"
               CompressionType = "None"
             }
           ]
@@ -173,7 +100,6 @@ resource "aws_sagemaker_pipeline" "ocr_pipeline" {
             learning_rate = "0.001"
           }
         }
-        DependsOn = ["PreprocessData"]
       }
     ]
   })

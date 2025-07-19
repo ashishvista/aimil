@@ -85,7 +85,28 @@ resource "aws_api_gateway_deployment" "ocr_api_deployment" {
   ]
 
   rest_api_id = aws_api_gateway_rest_api.ocr_api.id
-  stage_name  = "prod"
+
+  triggers = {
+    redeployment = sha1(jsonencode([
+      aws_api_gateway_resource.upload_resource.id,
+      aws_api_gateway_resource.process_resource.id,
+      aws_api_gateway_method.upload_post.id,
+      aws_api_gateway_method.process_post.id,
+      aws_api_gateway_integration.upload_integration.id,
+      aws_api_gateway_integration.process_integration.id,
+    ]))
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# API Gateway Stage
+resource "aws_api_gateway_stage" "prod" {
+  deployment_id = aws_api_gateway_deployment.ocr_api_deployment.id
+  rest_api_id   = aws_api_gateway_rest_api.ocr_api.id
+  stage_name    = "prod"
 }
 
 # CORS configuration

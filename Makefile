@@ -32,7 +32,7 @@ check-deps:
 	@echo "Checking dependencies..."
 	@command -v terraform >/dev/null 2>&1 || { echo "❌ Terraform not installed"; exit 1; }
 	@command -v aws >/dev/null 2>&1 || { echo "❌ AWS CLI not installed"; exit 1; }
-	@aws sts get-caller-identity >/dev/null 2>&1 || { echo "❌ AWS credentials not configured"; exit 1; }
+	@aws sts get-caller-identity --profile=test-prod >/dev/null 2>&1 || { echo "❌ AWS credentials not configured"; exit 1; }
 	@echo "✅ All dependencies are installed and configured"
 
 # Install dependencies (macOS)

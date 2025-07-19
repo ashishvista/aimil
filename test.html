@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OCR Pipeline Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #f8d7da; color: #721c24; }
+        .success { background: #d4edda; color: #155724; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 OCR Pipeline Test</h1>
+        <p><strong>API Gateway URL:</strong> https://jx556zg381.execute-api.ap-south-1.amazonaws.com/prod</p>
+        
+        <div class="section">
+            <h2>1. Test Presigned URL Generation</h2>
+            <button onclick="testPresignedUrl()">Test Upload Endpoint</button>
+            <div id="upload-result"></div>
+        </div>
+        
+        <div class="section">
+            <h2>2. Upload & Process Image</h2>
+            <input type="file" id="file-input" accept="image/*" onchange="handleFileSelect(this.files[0])">
+            <button onclick="processSelectedFile()" id="process-btn" disabled>Process Image</button>
+            <div id="process-result"></div>
+        </div>
+
+        <div class="section">
+            <h2>3. Infrastructure Status</h2>
+            <div class="result success">
+                <h3>✅ Successfully Deployed Resources:</h3>
+                <ul>
+                    <li>SageMaker Pipeline: ocr-pipeline-pipeline</li>
+                    <li>SageMaker Endpoint: ocr-pipeline-endpoint-sv1mmdug</li>
+                    <li>Lambda Functions: ocr-processor, presigned-url-generator</li>
+                    <li>S3 Buckets: uploads (ocr-pipeline-uploads-sv1mmdug), models (ocr-pipeline-sagemaker-sv1mmdug)</li>
+                    <li>API Gateway: https://jx556zg381.execute-api.ap-south-1.amazonaws.com/prod</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://jx556zg381.execute-api.ap-south-1.amazonaws.com/prod';
+        let selectedFile = null;
+
+        async function testPresignedUrl() {
+            const resultDiv = document.getElementById('upload-result');
+            resultDiv.innerHTML = '<p>Testing presigned URL generation...</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/upload`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filename: 'test.jpg',
+                        content_type: 'image/jpeg'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.innerHTML = `
+                        <div class="result success">
+                            <h4>✅ Presigned URL Generated Successfully!</h4>
+                            <p><strong>File Key:</strong> ${data.file_key}</p>
+                            <p><strong>Bucket:</strong> ${data.bucket}</p>
+                            <p><strong>Expires:</strong> ${data.expires_in} seconds</p>
+                        </div>
+                    `;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h4>❌ Error:</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function handleFileSelect(file) {
+            selectedFile = file;
+            const processBtn = document.getElementById('process-btn');
+            if (file) {
+                processBtn.disabled = false;
+                processBtn.textContent = `Process ${file.name}`;
+            } else {
+                processBtn.disabled = true;
+                processBtn.textContent = 'Process Image';
+            }
+        }
+
+        async function processSelectedFile() {
+            if (!selectedFile) return;
+
+            const resultDiv = document.getElementById('process-result');
+            resultDiv.innerHTML = '<p>Processing image...</p>';
+
+            try {
+                // 1. Get presigned URL
+                const uploadResponse = await fetch(`${API_URL}/upload`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file_extension: selectedFile.name.split('.').pop(),
+                        content_type: selectedFile.type
+                    })
+                });
+
+                if (!uploadResponse.ok) throw new Error('Failed to get upload URL');
+                const uploadData = await uploadResponse.json();
+
+                // 2. Upload file
+                const fileUploadResponse = await fetch(uploadData.upload_url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': selectedFile.type },
+                    body: selectedFile
+                });
+
+                if (!fileUploadResponse.ok) throw new Error('Failed to upload file');
+
+                // 3. Process with OCR
+                const processResponse = await fetch(`${API_URL}/process`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        s3_key: uploadData.file_key,
+                        method: 'tesseract'
+                    })
+                });
+
+                if (!processResponse.ok) throw new Error('OCR processing failed');
+                const results = await processResponse.json();
+
+                resultDiv.innerHTML = `
+                    <div class="result success">
+                        <h4>✅ Image Processed Successfully!</h4>
+                        <p><strong>Extracted Text:</strong></p>
+                        <div style="background: white; padding: 10px; margin: 10px 0; border: 1px solid #ddd;">
+                            ${results.tesseract?.full_text || 'No text detected'}
+                        </div>
+                        <p><strong>Processing Method:</strong> ${results.metadata?.processing_method}</p>
+                        <p><strong>Words Detected:</strong> ${results.tesseract?.word_boxes?.length || 0}</p>
+                    </div>
+                `;
+
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <h4>❌ Processing Error:</h4>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
