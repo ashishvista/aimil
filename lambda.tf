@@ -1,3 +1,13 @@
+# Lambda Layer for dependencies
+resource "aws_lambda_layer_version" "dependencies" {
+  filename         = data.archive_file.lambda_layer_zip.output_path
+  layer_name       = "${var.project_name}-dependencies"
+  source_code_hash = data.archive_file.lambda_layer_zip.output_base64sha256
+
+  compatible_runtimes = ["python3.9"]
+  description         = "Dependencies for OCR Pipeline Lambda functions"
+}
+
 # Lambda function for OCR processing
 resource "aws_lambda_function" "ocr_processor" {
   filename         = data.archive_file.lambda_zip.output_path
@@ -7,6 +17,7 @@ resource "aws_lambda_function" "ocr_processor" {
   runtime         = "python3.9"
   timeout         = 300
   memory_size     = 512
+  layers          = [aws_lambda_layer_version.dependencies.arn]
 
   environment {
     variables = {
@@ -15,7 +26,7 @@ resource "aws_lambda_function" "ocr_processor" {
     }
   }
 
-  depends_on = [aws_sagemaker_endpoint.ocr_endpoint]
+  depends_on = [aws_sagemaker_endpoint.ocr_endpoint, aws_lambda_layer_version.dependencies]
 }
 
 # Lambda function for generating presigned URLs
@@ -26,11 +37,33 @@ resource "aws_lambda_function" "presigned_url_generator" {
   handler         = "presigned_url.lambda_handler"
   runtime         = "python3.9"
   timeout         = 30
+  layers          = [aws_lambda_layer_version.dependencies.arn]
 
   environment {
     variables = {
       UPLOAD_BUCKET = aws_s3_bucket.upload_bucket.bucket
     }
+  }
+
+  depends_on = [aws_lambda_layer_version.dependencies]
+}
+
+# Archive Lambda layer
+data "archive_file" "lambda_layer_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/lambda_layer_temp"
+  output_path = "${path.module}/lambda_layer.zip"
+  depends_on  = [null_resource.build_lambda_layer]
+}
+
+# Build Lambda layer
+resource "null_resource" "build_lambda_layer" {
+  triggers = {
+    requirements_hash = filemd5("${path.module}/lambda/requirements.txt")
+  }
+
+  provisioner "local-exec" {
+    command = "${path.module}/build_lambda_layer.sh"
   }
 }
 

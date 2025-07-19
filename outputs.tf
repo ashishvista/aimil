@@ -26,7 +26,12 @@ output "pipeline_name" {
 output "lambda_function_names" {
   description = "Names of the Lambda functions"
   value = {
-    ocr_processor         = aws_lambda_function.ocr_processor.function_name
+    ocr_processor           = aws_lambda_function.ocr_processor.function_name
     presigned_url_generator = aws_lambda_function.presigned_url_generator.function_name
   }
+}
+
+output "lambda_layer_arn" {
+  description = "ARN of the Lambda layer with dependencies"
+  value       = aws_lambda_layer_version.dependencies.arn
 }
