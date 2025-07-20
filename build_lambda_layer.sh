@@ -44,29 +44,35 @@ if ! command -v docker >/dev/null 2>&1; then
     exit 1
 fi
 
-# Use Amazon Linux 2 image which matches Lambda runtime (x86_64)
+# Use Amazon Linux 2023 image which has Python 3.9 by default
 docker run --rm --platform linux/amd64 \
     -v "$(pwd)/lambda/requirements.txt:/tmp/requirements.txt" \
     -v "$(pwd)/$LAYER_DIR:/tmp/layer" \
-    amazonlinux:2 \
+    amazonlinux:2023 \
     bash -c "
         echo '🔄 Updating system packages...'
         yum update -y && 
         
-        echo '📦 Installing system dependencies for PIL/Pillow...'
-        yum install -y python3 python3-pip python3-devel gcc gcc-c++ make \
-                      libjpeg-devel zlib-devel libtiff-devel freetype-devel \
+        echo '📦 Installing Python 3.9 and system dependencies for PIL/Pillow...'
+        yum install -y python3.9 python3.9-pip python3.9-devel gcc gcc-c++ make \
+                      libjpeg-turbo-devel zlib-devel libtiff-devel freetype-devel \
                       lcms2-devel libwebp-devel tcl-devel tk-devel && 
         
+        echo '🔧 Checking Python version...'
+        python3.9 --version
+        
         echo '🔧 Upgrading pip and build tools...'
-        pip3 install --upgrade pip setuptools wheel && 
+        python3.9 -m pip install --upgrade pip setuptools wheel && 
         
         echo '📦 Installing Python packages with native compilation...'
-        pip3 install -r /tmp/requirements.txt -t /tmp/layer/python/lib/python3.9/site-packages --no-cache-dir &&
+        python3.9 -m pip install -r /tmp/requirements.txt -t /tmp/layer/python/lib/python3.9/site-packages --no-cache-dir &&
         
         echo '✅ Package installation complete!'
         echo '📋 Installed packages:'
         ls -la /tmp/layer/python/lib/python3.9/site-packages/ | head -10
+        
+        echo '🔍 Checking PIL native libraries...'
+        ls -la /tmp/layer/python/lib/python3.9/site-packages/PIL/*imaging* 2>/dev/null || echo 'No PIL imaging files found yet'
     "
 
 if [ $? -ne 0 ]; then
