@@ -1,0 +1,6 @@
+{
+    "vocab_size": 1000,
+    "hidden_dim": 512,
+    "input_channels": 3,
+    "model_type": "simple_ocr"
+}
