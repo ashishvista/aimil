@@ -1,61 +1,101 @@
-# Custom SageMaker container with Tesseract OCR
+# Optimized SageMaker container with Tesseract OCR
 # Using official SageMaker PyTorch inference base image
 FROM 763104351884.dkr.ecr.ap-south-1.amazonaws.com/pytorch-inference:1.12.0-cpu-py38
 
 # Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHONPATH=/opt/ml/code:$PYTHONPATH
-ENV PYTHONUNBUFFERED=TRUE
-ENV PYTHONDONTWRITEBYTECODE=TRUE
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONPATH=/opt/ml/code:$PYTHONPATH \
+    PYTHONUNBUFFERED=TRUE \
+    PYTHONDONTWRITEBYTECODE=TRUE \
+    TESSERACT_CMD=/usr/bin/tesseract \
+    SAGEMAKER_PROGRAM=inference.py \
+    SAGEMAKER_REGION=ap-south-1 \
+    HOME=/home/model-server \
+    XDG_CACHE_HOME=/home/model-server/.cache \
+    SAGEMAKER_BASE_DIR=/home/model-server/.sagemaker
 
-# Update package manager and install system dependencies including Tesseract
+# Switch to root for installations
 USER root
 
+# Single RUN layer for system dependencies and Python packages with aggressive cleanup
 RUN apt-get update && \
-    apt-get install -y \
+    # Install only essential Tesseract components (removed multiple language packs)
+    apt-get install -y --no-install-recommends \
         tesseract-ocr \
         tesseract-ocr-eng \
-        tesseract-ocr-spa \
-        tesseract-ocr-fra \
-        tesseract-ocr-deu \
         libtesseract-dev \
         libleptonica-dev \
         poppler-utils \
         libpoppler-cpp-dev \
         libgl1-mesa-glx \
         libglib2.0-0 \
-        && apt-get clean \
-        && rm -rf /var/lib/apt/lists/*
-
-# Install Python packages
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir \
-        torch==2.0.1 \
-        torchvision==0.15.2 \
-        --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir \
+    # Install Python packages (reuse existing PyTorch from base image instead of reinstalling)
+    && pip install --no-cache-dir \
         pytesseract==0.3.10 \
-        pillow>=9.0.0 \
-        pdf2image>=1.16.0 \
-        opencv-python-headless>=4.5.0
-
-# Create directories
-RUN mkdir -p /opt/ml/code && \
-    mkdir -p /opt/ml/model
+        pillow==9.5.0 \
+        pdf2image==1.17.0 \
+        opencv-python-headless==4.8.1.78 \
+    # Create directories with proper SageMaker structure
+    && mkdir -p /opt/ml/code /opt/ml/model /opt/ml/input /opt/ml/output /opt/ml/config \
+    && mkdir -p /logs /home/model-server/.sagemaker /home/model-server/.cache \
+    && mkdir -p /tmp/.sagemaker /var/tmp/.sagemaker \
+    # Create TorchServe config and disable it since we're using custom inference
+    && mkdir -p /etc/torchserve \
+    && touch /etc/sagemaker-ts.properties \
+    && echo "default_response_timeout=300" > /etc/sagemaker-ts.properties \
+    && echo "inference_address=http://0.0.0.0:8080" >> /etc/sagemaker-ts.properties \
+    && echo "management_address=http://0.0.0.0:8081" >> /etc/sagemaker-ts.properties \
+    && chown -R model-server:model-server /etc/torchserve /etc/sagemaker-ts.properties \
+    && chmod -R 755 /etc/torchserve \
+    && chmod 666 /etc/sagemaker-ts.properties \
+    # Set up all other permissions
+    && chown -R model-server:model-server /opt/ml /logs /home/model-server \
+    && chown -R model-server:model-server /tmp/.sagemaker /var/tmp/.sagemaker \
+    && chmod -R 755 /opt/ml /logs /home/model-server \
+    && chmod -R 755 /tmp/.sagemaker /var/tmp/.sagemaker \
+    # Aggressive cleanup to reduce image size
+    && apt-get autoremove -y \
+    && apt-get autoclean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /tmp/* /var/tmp/* \
+    && rm -rf /usr/share/doc/* \
+    && rm -rf /usr/share/man/* \
+    && rm -rf /usr/share/info/* \
+    && rm -rf /usr/share/locale/* \
+    && rm -rf /var/cache/* \
+    && pip cache purge \
+    && find /opt/conda -name "*.pyc" -delete \
+    && find /opt/conda -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local -name "*.pyc" -delete \
+    && find /usr/local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
 # Copy inference script
 COPY scripts/inference_enhanced.py /opt/ml/code/inference.py
 
-# Set environment variables for Tesseract
-ENV TESSERACT_CMD=/usr/bin/tesseract
+# Lightweight test to verify critical components (removed verbose output)
+RUN python -c "import pytesseract, PIL, torch, cv2; print('✅ All dependencies OK')"
 
-# Test installations
-RUN tesseract --version && \
-    python -c "import pytesseract; print('✅ pytesseract imported successfully')" && \
-    python -c "import PIL; print('✅ PIL imported successfully')" && \
-    python -c "import torch; print('✅ PyTorch imported successfully')" && \
-    python -c "import cv2; print('✅ OpenCV imported successfully')" && \
-    echo "✅ All dependencies installed successfully"
+# Create a custom entrypoint that completely bypasses SageMaker's default behavior
+RUN echo '#!/bin/bash' > /usr/local/bin/serve && \
+    echo 'export HOME=/home/model-server' >> /usr/local/bin/serve && \
+    echo 'export SAGEMAKER_BASE_DIR=/home/model-server/.sagemaker' >> /usr/local/bin/serve && \
+    echo 'export MODEL_DIR=/opt/ml/model' >> /usr/local/bin/serve && \
+    echo 'mkdir -p $SAGEMAKER_BASE_DIR $MODEL_DIR' >> /usr/local/bin/serve && \
+    echo '# Kill any existing TorchServe processes' >> /usr/local/bin/serve && \
+    echo 'pkill -f torchserve || true' >> /usr/local/bin/serve && \
+    echo 'pkill -f "model-archiver" || true' >> /usr/local/bin/serve && \
+    echo '# Start our custom inference server directly' >> /usr/local/bin/serve && \
+    echo 'cd /opt/ml/code' >> /usr/local/bin/serve && \
+    echo 'echo "🚀 Starting custom OCR inference server..."' >> /usr/local/bin/serve && \
+    echo 'exec python inference.py --host 0.0.0.0 --port 8080' >> /usr/local/bin/serve && \
+    chmod +x /usr/local/bin/serve
+
+# Override the default SageMaker entrypoint completely
+ENV SAGEMAKER_PROGRAM=""
+ENTRYPOINT ["/usr/local/bin/serve"]
 
 # Switch back to model-server user for SageMaker compatibility
 USER model-server
+
+# Set working directory
+WORKDIR /opt/ml/code

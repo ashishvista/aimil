@@ -1,0 +1,9 @@
+{
+  "model_type": "simple_ocr_crnn",
+  "vocab_size": 96,
+  "input_size": [
+    3,
+    64,
+    256
+  ]
+}
