@@ -32,6 +32,16 @@ output "lambda_function_names" {
 }
 
 output "lambda_layer_arn" {
-  description = "ARN of the Lambda layer with dependencies"
+  description = "ARN of the Lambda layer"
   value       = aws_lambda_layer_version.dependencies.arn
+}
+
+output "api_gateway_log_group" {
+  description = "CloudWatch Log Group for API Gateway logs"
+  value       = aws_cloudwatch_log_group.api_gateway_logs.name
+}
+
+output "api_gateway_stage_name" {
+  description = "API Gateway stage name"
+  value       = aws_api_gateway_stage.prod.stage_name
 }
