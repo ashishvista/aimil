@@ -4,11 +4,12 @@ resource "aws_sagemaker_model" "ocr_model" {
   execution_role_arn = aws_iam_role.sagemaker_execution_role.arn
 
   primary_container {
-    image          = var.inference_image_uri
-    model_data_url = "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/models/model.tar.gz"
+    # Use custom image if provided, otherwise use default
+    image          = var.custom_inference_image != "" ? var.custom_inference_image : var.inference_image_uri
+    model_data_url = var.custom_inference_image != "" ? null : "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/models/model.tar.gz"
     environment = {
       SAGEMAKER_PROGRAM = "inference.py"
-      SAGEMAKER_SUBMIT_DIRECTORY = "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/code/"
+      SAGEMAKER_SUBMIT_DIRECTORY = var.custom_inference_image != "" ? null : "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/code/"
     }
   }
 

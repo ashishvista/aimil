@@ -1,0 +1,61 @@
+# Custom SageMaker container with Tesseract OCR
+# Using official SageMaker PyTorch inference base image
+FROM 763104351884.dkr.ecr.ap-south-1.amazonaws.com/pytorch-inference:1.12.0-cpu-py38
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONPATH=/opt/ml/code:$PYTHONPATH
+ENV PYTHONUNBUFFERED=TRUE
+ENV PYTHONDONTWRITEBYTECODE=TRUE
+
+# Update package manager and install system dependencies including Tesseract
+USER root
+
+RUN apt-get update && \
+    apt-get install -y \
+        tesseract-ocr \
+        tesseract-ocr-eng \
+        tesseract-ocr-spa \
+        tesseract-ocr-fra \
+        tesseract-ocr-deu \
+        libtesseract-dev \
+        libleptonica-dev \
+        poppler-utils \
+        libpoppler-cpp-dev \
+        libgl1-mesa-glx \
+        libglib2.0-0 \
+        && apt-get clean \
+        && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+        torch==2.0.1 \
+        torchvision==0.15.2 \
+        --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir \
+        pytesseract==0.3.10 \
+        pillow>=9.0.0 \
+        pdf2image>=1.16.0 \
+        opencv-python-headless>=4.5.0
+
+# Create directories
+RUN mkdir -p /opt/ml/code && \
+    mkdir -p /opt/ml/model
+
+# Copy inference script
+COPY scripts/inference_enhanced.py /opt/ml/code/inference.py
+
+# Set environment variables for Tesseract
+ENV TESSERACT_CMD=/usr/bin/tesseract
+
+# Test installations
+RUN tesseract --version && \
+    python -c "import pytesseract; print('✅ pytesseract imported successfully')" && \
+    python -c "import PIL; print('✅ PIL imported successfully')" && \
+    python -c "import torch; print('✅ PyTorch imported successfully')" && \
+    python -c "import cv2; print('✅ OpenCV imported successfully')" && \
+    echo "✅ All dependencies installed successfully"
+
+# Switch back to model-server user for SageMaker compatibility
+USER model-server
