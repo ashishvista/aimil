@@ -9,8 +9,8 @@ resource "aws_sagemaker_model" "ocr_model" {
     # Always use model data - this allows both Tesseract (from container) and PyTorch model (from S3)
     model_data_url = "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/models/model.tar.gz"
     environment = {
-      SAGEMAKER_PROGRAM = "inference.py"
-      SAGEMAKER_SUBMIT_DIRECTORY = "s3://${aws_s3_bucket.sagemaker_bucket.bucket}/code/"
+      SAGEMAKER_PROGRAM = ""
+      SAGEMAKER_SUBMIT_DIRECTORY = ""
     }
   }
 
