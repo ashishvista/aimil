@@ -20,6 +20,7 @@ resource "aws_lambda_function" "ocr_processor" {
   timeout         = 300
   memory_size     = 512
   layers          = [aws_lambda_layer_version.dependencies.arn]
+  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
   environment {
     variables = {
