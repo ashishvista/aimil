@@ -1,7 +1,13 @@
 #!/bin/bash
 
-# Build Lambda Layer for Python dependencies
-# This script creates a Lambda layer with all required Python packages
+# Build Lambda Layer for Python dependeelse
+    echo "⚠️  Docker not found, using manylinux wheels for compatibility"
+    echo "📦 Installing Python dependencies with manylinux wheels..."
+    pip3 install -r lambda/requirements.txt -t "$LAYER_DIR/python" \
+        --no-cache-dir --only-binary=:all: --platform manylinux1_x86_64 \
+        --implementation cp --python-version 3.9 --abi cp39 --quiet || \
+    pip3 install -r lambda/requirements.txt -t "$LAYER_DIR/python" --no-cache-dir --quiet
+fi# This script creates a Lambda layer with all required Python packages
 
 set -e
 
@@ -44,8 +50,11 @@ if command -v docker >/dev/null 2>&1; then
         amazonlinux:2 \
         bash -c "
             yum update -y && 
-            yum install -y python3 python3-pip && 
-            pip3 install -r /tmp/requirements.txt -t /tmp/layer/python --no-deps
+            yum install -y python3 python3-pip python3-devel gcc gcc-c++ make \
+                          libjpeg-devel zlib-devel libtiff-devel freetype-devel \
+                          lcms2-devel libwebp-devel tcl-devel tk-devel && 
+            pip3 install --upgrade pip setuptools wheel && 
+            pip3 install -r /tmp/requirements.txt -t /tmp/layer/python --no-cache-dir
         "
 else
     echo "⚠️  Docker not found, falling back to platform-independent packages"
