@@ -236,6 +236,7 @@ EOF
     if aws sagemaker-runtime invoke-endpoint \
         --endpoint-name "$ENDPOINT_NAME" \
         --content-type "application/json" \
+        --accept "application/json" \
         --body fileb:///tmp/test_payload.json \
         --profile $AWS_PROFILE \
         /tmp/response.json 2>/dev/null; then

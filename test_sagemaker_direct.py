@@ -82,8 +82,8 @@ def test_sagemaker_endpoint():
         response = sagemaker_runtime.invoke_endpoint(
             EndpointName=endpoint_name,
             ContentType='application/json',
-            Body=payload_json,
-            Accept='application/json'
+            Accept='application/json',
+            Body=payload_json
         )
         
         end_time = datetime.now()

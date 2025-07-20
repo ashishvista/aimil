@@ -64,6 +64,7 @@ def quick_test():
         response = sagemaker_runtime.invoke_endpoint(
             EndpointName=endpoint_name,
             ContentType='application/json',
+            Accept='application/json',
             Body=json.dumps(payload)
         )
         

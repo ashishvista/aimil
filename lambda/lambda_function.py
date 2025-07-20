@@ -169,6 +169,7 @@ def lambda_handler(event, context):
             response = sagemaker_runtime.invoke_endpoint(
                 EndpointName=endpoint_name,
                 ContentType='application/json',
+                Accept='application/json',
                 Body=json.dumps(payload)
             )
             print("✅ SageMaker endpoint invoked successfully")

@@ -234,7 +234,20 @@ def output_fn(prediction, accept):
     """
     logger.info(f"Formatting output for content type: {accept}")
     
-    if accept == 'application/json':
+    # Handle various accept types gracefully
+    if accept in ['application/json', '*/*', None]:
         return json.dumps(prediction, indent=2), 'application/json'
+    elif accept == 'text/plain':
+        # Return just the extracted text for text/plain requests
+        text_content = ""
+        if 'tesseract' in prediction and prediction['tesseract'].get('success'):
+            text_content = prediction['tesseract']['full_text']
+        elif 'pytorch' in prediction and prediction['pytorch'].get('success'):
+            text_content = prediction['pytorch']['predicted_text']
+        else:
+            text_content = "No text could be extracted"
+        return text_content, 'text/plain'
     else:
-        raise ValueError(f"Unsupported accept type: {accept}")
+        # Default to JSON for any unrecognized accept type
+        logger.warning(f"Unrecognized accept type '{accept}', defaulting to application/json")
+        return json.dumps(prediction, indent=2), 'application/json'

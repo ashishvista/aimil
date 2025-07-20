@@ -362,7 +362,8 @@ def output_fn(prediction: Dict[str, Any], accept: str) -> tuple:
     """
     logger.info(f"Formatting output for content type: {accept}")
     
-    if accept == 'application/json':
+    # Handle various accept types gracefully
+    if accept in ['application/json', '*/*', None]:
         return json.dumps(prediction, indent=2, default=str), 'application/json'
     elif accept == 'text/plain':
         # Return just the extracted text
@@ -375,7 +376,9 @@ def output_fn(prediction: Dict[str, Any], accept: str) -> tuple:
             text_content = "No text could be extracted"
         return text_content, 'text/plain'
     else:
-        raise ValueError(f"Unsupported accept type: {accept}")
+        # Default to JSON for any unrecognized accept type
+        logger.warning(f"Unrecognized accept type '{accept}', defaulting to application/json")
+        return json.dumps(prediction, indent=2, default=str), 'application/json'
 
 if __name__ == "__main__":
     """

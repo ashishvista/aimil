@@ -151,8 +151,8 @@ class SageMakerEndpointTester:
             response = self.sagemaker_runtime.invoke_endpoint(
                 EndpointName=self.endpoint_name,
                 ContentType='application/json',
-                Body=json.dumps(payload),
-                Accept='application/json'
+                Accept='application/json',
+                Body=json.dumps(payload)
             )
             
             end_time = time.time()
